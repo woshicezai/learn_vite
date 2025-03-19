@@ -9,10 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.3.4"
+    "lodash-es": "^4.17.21",
+    "vue": "^3.3.4",
+    "vxe-table": "4.11.19"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
+    "rollup-plugin-visualizer": "^5.9.2",
+    "sass": "^1.85.1",
     "vite": "^4.4.5"
   }
 }
