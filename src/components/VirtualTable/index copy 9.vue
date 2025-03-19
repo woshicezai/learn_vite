@@ -51,7 +51,7 @@
 
     <!-- 表体区域 -->
     <div class="virtual-table-body">
-      <!-- 冻结列区域 - 可垂直滚动但隐藏滚动条 -->
+      <!-- 冻结列区域 - 可垂直滚动 -->
       <div
         ref="frozenBodyRef"
         class="virtual-table-frozen-body hide-scrollbar"
@@ -189,11 +189,6 @@ const props = defineProps({
     type: Number,
     default: 1,
   },
-  // 数据源更新后是否保持滚动位置
-  keepScrollPosition: {
-    type: Boolean,
-    default: false,
-  },
 });
 
 // 定义事件
@@ -210,9 +205,6 @@ const isScrollingSynced = ref(false);
 // 滚动状态
 const scrollTop = ref(0);
 const scrollLeft = ref(0);
-
-// 上一次的数据长度，用于计算滚动位置补偿
-const previousDataLength = ref(0);
 
 // 分离冻结列和非冻结列
 const { frozenColumns, nonFrozenColumns } = computed(() => {
@@ -471,104 +463,27 @@ const scrollToColumn = (colIndex) => {
   bodyContainerRef.value.scrollLeft = targetNonFrozenCol.offsetLeft;
 };
 
-// 调整滚动位置以保持相对视图
-const adjustScrollPosition = () => {
-  if (!bodyContainerRef.value || !props.keepScrollPosition) return;
-
-  const currentDataLength = props.data.length;
-  const previousLength = previousDataLength.value;
-
-  // 如果数据量增加，保持滚动位置
-  if (currentDataLength > previousLength) {
-    // 保持当前滚动位置
-    nextTick(() => {
-      bodyContainerRef.value.scrollTop = scrollTop.value;
-      if (frozenBodyRef.value) {
-        frozenBodyRef.value.scrollTop = scrollTop.value;
-      }
-    });
-  }
-  // 如果数据量减少，但有可视区域内的数据被删除，调整滚动位置以保持视觉上的连续性
-  else if (currentDataLength < previousLength && scrollTop.value > 0) {
-    const removedRows = previousLength - currentDataLength;
-    const viewportTop = scrollTop.value;
-    const viewportBottom = viewportTop + props.height - props.headerHeight;
-
-    // 如果删除的行在可视区域前方，需要调整滚动位置
-    if (viewportTop > removedRows * props.rowHeight) {
-      const newScrollTop = Math.max(
-        0,
-        scrollTop.value - removedRows * props.rowHeight
-      );
-      nextTick(() => {
-        bodyContainerRef.value.scrollTop = newScrollTop;
-        if (frozenBodyRef.value) {
-          frozenBodyRef.value.scrollTop = newScrollTop;
-        }
-      });
-    }
-    // 如果删除的行导致滚动位置超出范围，调整到合法范围
-    else if (scrollTop.value > totalHeight.value - props.height) {
-      const newScrollTop = Math.max(
-        0,
-        totalHeight.value - props.height + props.headerHeight
-      );
-      nextTick(() => {
-        bodyContainerRef.value.scrollTop = newScrollTop;
-        if (frozenBodyRef.value) {
-          frozenBodyRef.value.scrollTop = newScrollTop;
-        }
-      });
-    }
-    // 否则保持当前滚动位置
-    else {
-      nextTick(() => {
-        bodyContainerRef.value.scrollTop = scrollTop.value;
-        if (frozenBodyRef.value) {
-          frozenBodyRef.value.scrollTop = scrollTop.value;
-        }
-      });
-    }
-  }
-
-  // 更新记录的数据长度
-  previousDataLength.value = currentDataLength;
-};
-
 // 对外暴露方法
 defineExpose({
   scrollToRow,
   scrollToColumn,
 });
 
-// 监听数据变化
+// 监听数据变化，重新滚动到顶部
 watch(
   () => props.data,
   () => {
-    // 记录当前滚动位置
-    const currentScrollTop = scrollTop.value;
-    const currentScrollLeft = scrollLeft.value;
-
-    if (props.keepScrollPosition) {
-      // 应用滚动位置调整
-      adjustScrollPosition();
-    } else {
-      // 重置滚动位置到顶部
-      nextTick(() => {
-        if (bodyContainerRef.value) {
-          bodyContainerRef.value.scrollTop = 0;
-        }
-        if (frozenBodyRef.value) {
-          frozenBodyRef.value.scrollTop = 0;
-        }
-      });
-    }
+    nextTick(() => {
+      if (bodyContainerRef.value) {
+        bodyContainerRef.value.scrollTop = 0;
+      }
+      if (frozenBodyRef.value) {
+        frozenBodyRef.value.scrollTop = 0;
+      }
+    });
   },
   { deep: true }
 );
-
-// 初始化时记录数据长度
-previousDataLength.value = props.data.length;
 </script>
 
 <style scoped>
@@ -657,17 +572,6 @@ previousDataLength.value = props.data.length;
   overflow: auto;
 }
 
-/* 隐藏滚动条样式 */
-.hide-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
-
-/* Chrome, Safari and Opera */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
 /* 冻结内容容器 */
 .virtual-table-frozen-content {
   position: relative;
@@ -719,5 +623,16 @@ previousDataLength.value = props.data.length;
   pointer-events: none;
   box-shadow: 6px 0 6px -4px rgba(0, 0, 0, 0.15);
   z-index: 3;
+}
+
+/* 隐藏滚动条样式 */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 </style>

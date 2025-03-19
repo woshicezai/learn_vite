@@ -7,6 +7,7 @@
     :height="600"
     @scroll-to-top="handleScrollToTop"
     @scroll-to-bottom="handleScrollToBottom"
+    :keepScrollPosition="true"
   >
     <!-- 自定义列单元格 -->
     <template #action="{ row }">
@@ -20,9 +21,11 @@
 import { ref } from "vue";
 import VirtualTable from "./components/VirtualTable/index.vue";
 
+const maxCount = 400;
+let times = 200;
 // 生成测试数据
 const tableData = ref(
-  Array.from({ length: 10000 }, (_, i) => ({
+  Array.from({ length: 200 }, (_, i) => ({
     id: i + 1,
     name: `Item ${i + 1}`,
     age: Math.floor(Math.random() * 100),
@@ -78,6 +81,23 @@ const tableColumns = ref([
   { prop: "action", title: "操作", width: 150 },
   // 添加更多列...
 ]);
+
+setInterval(() => {
+  tableData.value = tableData.value
+    .concat(
+      Array.from({ length: 100 }, (_, i) => ({
+        id: i + times + 1,
+        name: `Item ${i + times + 1}`,
+        age: Math.floor(Math.random() * 100),
+        address: `Street ${i + 1}, Building ${Math.floor(Math.random() * 100)}`,
+        // 添加更多字段...
+      }))
+    )
+    .sort((a, b) => b.id - a.id)
+    .slice(0, maxCount);
+
+  times += 100;
+}, 500);
 
 // 事件处理
 const handleScrollToTop = () => {
