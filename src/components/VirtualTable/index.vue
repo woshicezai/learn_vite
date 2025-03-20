@@ -7,8 +7,8 @@
     <!-- 头部容器 -->
     <div class="virtual-table-header-container">
       <!-- 冻结列表头 - 固定在左侧 -->
-      <div
-        class="virtual-table-frozen-header"
+      <div 
+        class="virtual-table-frozen-header" 
         :style="{ width: frozenWidth + 'px' }"
         v-if="hasFrozenColumns"
       >
@@ -16,18 +16,26 @@
           v-for="col in frozenColumns"
           :key="col.id"
           class="virtual-table-header-cell"
+          :class="{ 'sortable': col.sortable }"
           :style="{
             width: col.width + 'px',
             left: col.left + 'px',
           }"
+          @click="handleHeaderClick(col)"
         >
-          {{ col.title }}
+          <div class="cell-content">
+            {{ col.title }}
+            <div v-if="col.sortable" class="sort-icons">
+              <div class="sort-icon sort-up" :class="{ 'active': sortState.prop === col.prop && sortState.order === 'asc' }">▲</div>
+              <div class="sort-icon sort-down" :class="{ 'active': sortState.prop === col.prop && sortState.order === 'desc' }">▼</div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- 非冻结列表头 - 可以滚动 -->
-      <div
-        class="virtual-table-scrollable-header"
+      <div 
+        class="virtual-table-scrollable-header" 
         :style="{ marginLeft: frozenWidth + 'px' }"
       >
         <div
@@ -38,12 +46,20 @@
             v-for="col in nonFrozenColumns"
             :key="col.id"
             class="virtual-table-header-cell"
+            :class="{ 'sortable': col.sortable }"
             :style="{
               width: col.width + 'px',
               left: col.offsetLeft + 'px',
             }"
+            @click="handleHeaderClick(col)"
           >
-            {{ col.title }}
+            <div class="cell-content">
+              {{ col.title }}
+              <div v-if="col.sortable" class="sort-icons">
+                <div class="sort-icon sort-up" :class="{ 'active': sortState.prop === col.prop && sortState.order === 'asc' }">▲</div>
+                <div class="sort-icon sort-down" :class="{ 'active': sortState.prop === col.prop && sortState.order === 'desc' }">▼</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -52,18 +68,15 @@
     <!-- 表体区域 -->
     <div class="virtual-table-body">
       <!-- 冻结列区域 - 可垂直滚动但隐藏滚动条 -->
-      <div
+      <div 
         ref="frozenBodyRef"
-        class="virtual-table-frozen-body hide-scrollbar"
+        class="virtual-table-frozen-body hide-scrollbar" 
         :style="{ width: frozenWidth + 'px' }"
         @scroll="onFrozenScroll"
         @wheel="handleFrozenWheel"
         v-if="hasFrozenColumns"
       >
-        <div
-          class="virtual-table-frozen-content"
-          :style="{ height: totalHeight + 'px' }"
-        >
+        <div class="virtual-table-frozen-content" :style="{ height: totalHeight + 'px' }">
           <div
             v-for="row in visibleRows"
             :key="row.id"
@@ -91,7 +104,7 @@
       </div>
 
       <!-- 非冻结列区域 - 可滚动 -->
-      <div
+      <div 
         ref="bodyContainerRef"
         class="virtual-table-scrollable-body"
         @scroll="onScroll"
@@ -131,14 +144,14 @@
       <div
         class="virtual-table-frozen-shadow"
         v-if="hasFrozenColumns && frozenWidth > 0 && scrollLeft > 0"
-        :style="{ left: frozenWidth - 10 + 'px' }"
+        :style="{ left: frozenWidth - 1 + 'px' }"
       ></div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 
 // 定义组件的props
 const props = defineProps({
@@ -193,11 +206,16 @@ const props = defineProps({
   keepScrollPosition: {
     type: Boolean,
     default: false,
-  },
+  }
 });
 
 // 定义事件
-const emit = defineEmits(["scroll-to-top", "scroll-to-bottom", "scroll"]);
+const emit = defineEmits([
+  "scroll-to-top", 
+  "scroll-to-bottom", 
+  "scroll", 
+  "sort-change"
+]);
 
 // refs
 const containerRef = ref(null);
@@ -214,45 +232,57 @@ const scrollLeft = ref(0);
 // 上一次的数据长度，用于计算滚动位置补偿
 const previousDataLength = ref(0);
 
-// 分离冻结列和非冻结列
+// 排序状态
+const sortState = ref({
+  prop: '',
+  order: ''
+});
+
+// 分离冻结列和非冻结列，并处理排序配置
 const { frozenColumns, nonFrozenColumns } = computed(() => {
   const frozen = [];
   const nonFrozen = [];
-
+  
   // 处理冻结列位置
   let frozenLeft = 0;
   props.columns.forEach((col, index) => {
     const width = col.width || 100;
     const isFrozen = !!col.frozen;
-
+    
+    // 处理列配置
+    const processedCol = {
+      ...col,
+      id: col.prop || `col-${index}`,
+      width,
+      title: col.title || col.prop || `Column ${index+1}`,
+      prop: col.prop || `col-${index}`,
+      sortable: !!col.sortable,
+    };
+    
+    // 检查是否有默认排序
+    if (col.sortable && col.defaultSort) {
+      sortState.value = {
+        prop: col.prop,
+        order: col.defaultSort
+      };
+    }
+    
     if (isFrozen) {
-      frozen.push({
-        ...col,
-        id: col.prop || `col-${index}`,
-        width,
-        left: frozenLeft,
-        title: col.title || col.prop || `Column ${index + 1}`,
-        prop: col.prop || `col-${index}`,
-      });
+      processedCol.left = frozenLeft;
+      frozen.push(processedCol);
       frozenLeft += width;
     } else {
-      nonFrozen.push({
-        ...col,
-        id: col.prop || `col-${index}`,
-        width,
-        title: col.title || col.prop || `Column ${index + 1}`,
-        prop: col.prop || `col-${index}`,
-      });
+      nonFrozen.push(processedCol);
     }
   });
-
+  
   // 处理非冻结列的位置
   let nonFrozenLeft = 0;
-  nonFrozen.forEach((col) => {
+  nonFrozen.forEach(col => {
     col.offsetLeft = nonFrozenLeft;
     nonFrozenLeft += col.width;
   });
-
+  
   return { frozenColumns: frozen, nonFrozenColumns: nonFrozen };
 }).value;
 
@@ -276,34 +306,33 @@ const visibleNonFrozenColumns = computed(() => {
   if (nonFrozenColumns.length === 0) {
     return [];
   }
-
+  
   // 计算可见范围
   const viewportStart = scrollLeft.value;
   const viewportEnd = viewportStart + props.width - frozenWidth.value;
-
+  
   // 找到第一个可见列
-  const startColIndex = nonFrozenColumns.findIndex(
-    (col) => col.offsetLeft + col.width > viewportStart
+  const startColIndex = nonFrozenColumns.findIndex(col => 
+    col.offsetLeft + col.width > viewportStart
   );
-
+  
   if (startColIndex === -1) {
     return [];
   }
-
+  
   // 添加缓冲区
   const bufferStart = Math.max(0, startColIndex - props.colBuffer);
   let bufferEnd = startColIndex;
-
+  
   // 添加可见列
   while (
-    bufferEnd < nonFrozenColumns.length &&
-    (nonFrozenColumns[bufferEnd].offsetLeft < viewportEnd ||
-      bufferEnd <
-        bufferStart + props.colBuffer * 2 + Math.ceil(props.width / 100))
+    bufferEnd < nonFrozenColumns.length && 
+    (nonFrozenColumns[bufferEnd].offsetLeft < viewportEnd || 
+     bufferEnd < bufferStart + props.colBuffer * 2 + Math.ceil(props.width / 100))
   ) {
     bufferEnd++;
   }
-
+  
   // 返回可见列
   return nonFrozenColumns.slice(bufferStart, bufferEnd);
 });
@@ -315,22 +344,19 @@ const totalHeight = computed(() => {
 
 // 计算可视区域能显示的行数
 const visibleRowCount = computed(() => {
-  return (
-    Math.ceil((props.height - props.headerHeight) / props.rowHeight) +
-    props.rowBuffer * 2
-  );
+  return Math.ceil((props.height - props.headerHeight) / props.rowHeight) + props.rowBuffer * 2;
 });
 
 // 计算可见行
 const visibleRows = computed(() => {
   if (!props.data.length) return [];
-
+  
   const start = Math.max(
     0,
     Math.floor(scrollTop.value / props.rowHeight) - props.rowBuffer
   );
   const end = Math.min(props.data.length, start + visibleRowCount.value);
-
+  
   return Array.from({ length: end - start }, (_, i) => {
     const index = start + i;
     return {
@@ -343,52 +369,94 @@ const visibleRows = computed(() => {
 
 // 获取单元格的值
 const getCellValue = (row, col) => {
-  if (!row) return "";
-
+  if (!row) return '';
+  
   if (typeof col.value === "function") {
     return col.value(row);
   }
-
+  
   // 安全地获取数据
-  return row[col.prop] !== undefined ? row[col.prop] : "";
+  return row[col.prop] !== undefined ? row[col.prop] : '';
+};
+
+// 处理表头点击（排序）
+const handleHeaderClick = (col) => {
+  if (!col.sortable) return;
+  
+  let newOrder = '';
+  
+  // 如果点击的是当前排序列，则循环切换排序顺序：asc -> desc -> ''
+  if (sortState.value.prop === col.prop) {
+    if (sortState.value.order === 'asc') {
+      newOrder = 'desc';
+    } else if (sortState.value.order === 'desc') {
+      newOrder = '';
+    } else {
+      newOrder = 'asc';
+    }
+  } else {
+    // 如果点击的是新列，则按升序排序
+    newOrder = 'asc';
+  }
+  
+  // 更新排序状态
+  sortState.value = {
+    prop: newOrder ? col.prop : '',
+    order: newOrder
+  };
+  
+  // 触发排序事件
+  emit('sort-change', { prop: col.prop, order: newOrder });
+};
+
+// 初始化默认排序
+const initializeDefaultSort = () => {
+  // 查找有默认排序的列
+  const allColumns = [...frozenColumns, ...nonFrozenColumns];
+  const defaultSortColumn = allColumns.find(col => col.sortable && col.defaultSort);
+  
+  if (defaultSortColumn) {
+    sortState.value = {
+      prop: defaultSortColumn.prop,
+      order: defaultSortColumn.defaultSort
+    };
+  }
 };
 
 // 非冻结区域滚动处理
 const onScroll = (e) => {
   const { scrollTop: newScrollTop, scrollLeft: newScrollLeft } = e.target;
-
+  
   // 避免无限循环
   if (isScrollingSynced.value) {
     isScrollingSynced.value = false;
     return;
   }
-
+  
   scrollTop.value = newScrollTop;
   scrollLeft.value = newScrollLeft;
-
+  
   // 同步冻结区域的滚动位置
   if (frozenBodyRef.value && !isScrollingSynced.value) {
     isScrollingSynced.value = true;
     frozenBodyRef.value.scrollTop = newScrollTop;
   }
-
+  
   // 同步表头滚动位置
   if (containerRef.value) {
-    const header = containerRef.value.querySelector(
-      ".virtual-table-header-content"
-    );
+    const header = containerRef.value.querySelector('.virtual-table-header-content');
     if (header) {
       header.style.transform = `translateX(${-newScrollLeft}px)`;
     }
   }
-
+  
   emit("scroll", { scrollTop: newScrollTop, scrollLeft: newScrollLeft });
-
+  
   // 检测滚动到顶部或底部
   if (newScrollTop <= 0) {
     emit("scroll-to-top");
   }
-
+  
   if (newScrollTop + (props.height - props.headerHeight) >= totalHeight.value) {
     emit("scroll-to-bottom");
   }
@@ -397,28 +465,28 @@ const onScroll = (e) => {
 // 冻结区域滚动处理
 const onFrozenScroll = (e) => {
   const { scrollTop: newScrollTop } = e.target;
-
+  
   // 避免无限循环
   if (isScrollingSynced.value) {
     isScrollingSynced.value = false;
     return;
   }
-
+  
   scrollTop.value = newScrollTop;
-
+  
   // 同步非冻结区域的滚动位置
   if (bodyContainerRef.value && !isScrollingSynced.value) {
     isScrollingSynced.value = true;
     bodyContainerRef.value.scrollTop = newScrollTop;
   }
-
+  
   emit("scroll", { scrollTop: newScrollTop, scrollLeft: scrollLeft.value });
-
+  
   // 检测滚动到顶部或底部
   if (newScrollTop <= 0) {
     emit("scroll-to-top");
   }
-
+  
   if (newScrollTop + (props.height - props.headerHeight) >= totalHeight.value) {
     emit("scroll-to-bottom");
   }
@@ -429,10 +497,10 @@ const handleFrozenWheel = (e) => {
   if (frozenBodyRef.value) {
     // 防止默认行为（页面滚动）
     e.preventDefault();
-
+    
     // 计算滚动距离
     const delta = e.deltaY || e.detail || -e.wheelDelta;
-
+    
     // 更新滚动位置
     frozenBodyRef.value.scrollTop += delta;
   }
@@ -441,10 +509,10 @@ const handleFrozenWheel = (e) => {
 // 滚动到指定行
 const scrollToRow = (rowIndex) => {
   if (!bodyContainerRef.value) return;
-
+  
   const top = rowIndex * props.rowHeight;
   bodyContainerRef.value.scrollTop = top;
-
+  
   // 同步冻结区域
   if (frozenBodyRef.value) {
     frozenBodyRef.value.scrollTop = top;
@@ -455,18 +523,16 @@ const scrollToRow = (rowIndex) => {
 const scrollToColumn = (colIndex) => {
   const allColumns = [...frozenColumns, ...nonFrozenColumns];
   if (!bodyContainerRef.value || colIndex >= allColumns.length) return;
-
+  
   const targetCol = allColumns[colIndex];
-
+  
   // 如果是冻结列，不需要滚动
   if (targetCol.frozen) return;
-
+  
   // 找到目标列在非冻结列中的位置
-  const targetNonFrozenCol = nonFrozenColumns.find(
-    (col) => col.id === targetCol.id
-  );
+  const targetNonFrozenCol = nonFrozenColumns.find(col => col.id === targetCol.id);
   if (!targetNonFrozenCol) return;
-
+  
   // 滚动到目标列位置
   bodyContainerRef.value.scrollLeft = targetNonFrozenCol.offsetLeft;
 };
@@ -474,10 +540,10 @@ const scrollToColumn = (colIndex) => {
 // 调整滚动位置以保持相对视图
 const adjustScrollPosition = () => {
   if (!bodyContainerRef.value || !props.keepScrollPosition) return;
-
+  
   const currentDataLength = props.data.length;
   const previousLength = previousDataLength.value;
-
+  
   // 如果数据量增加，保持滚动位置
   if (currentDataLength > previousLength) {
     // 保持当前滚动位置
@@ -487,19 +553,16 @@ const adjustScrollPosition = () => {
         frozenBodyRef.value.scrollTop = scrollTop.value;
       }
     });
-  }
+  } 
   // 如果数据量减少，但有可视区域内的数据被删除，调整滚动位置以保持视觉上的连续性
   else if (currentDataLength < previousLength && scrollTop.value > 0) {
     const removedRows = previousLength - currentDataLength;
     const viewportTop = scrollTop.value;
     const viewportBottom = viewportTop + props.height - props.headerHeight;
-
+    
     // 如果删除的行在可视区域前方，需要调整滚动位置
     if (viewportTop > removedRows * props.rowHeight) {
-      const newScrollTop = Math.max(
-        0,
-        scrollTop.value - removedRows * props.rowHeight
-      );
+      const newScrollTop = Math.max(0, scrollTop.value - removedRows * props.rowHeight);
       nextTick(() => {
         bodyContainerRef.value.scrollTop = newScrollTop;
         if (frozenBodyRef.value) {
@@ -509,10 +572,7 @@ const adjustScrollPosition = () => {
     }
     // 如果删除的行导致滚动位置超出范围，调整到合法范围
     else if (scrollTop.value > totalHeight.value - props.height) {
-      const newScrollTop = Math.max(
-        0,
-        totalHeight.value - props.height + props.headerHeight
-      );
+      const newScrollTop = Math.max(0, totalHeight.value - props.height + props.headerHeight);
       nextTick(() => {
         bodyContainerRef.value.scrollTop = newScrollTop;
         if (frozenBodyRef.value) {
@@ -530,7 +590,7 @@ const adjustScrollPosition = () => {
       });
     }
   }
-
+  
   // 更新记录的数据长度
   previousDataLength.value = currentDataLength;
 };
@@ -539,16 +599,18 @@ const adjustScrollPosition = () => {
 defineExpose({
   scrollToRow,
   scrollToColumn,
+  getSortState: () => sortState.value
+});
+
+// 组件挂载时初始化默认排序
+onMounted(() => {
+  initializeDefaultSort();
 });
 
 // 监听数据变化
 watch(
   () => props.data,
   () => {
-    // 记录当前滚动位置
-    const currentScrollTop = scrollTop.value;
-    const currentScrollLeft = scrollLeft.value;
-
     if (props.keepScrollPosition) {
       // 应用滚动位置调整
       adjustScrollPosition();
@@ -563,6 +625,15 @@ watch(
         }
       });
     }
+  },
+  { deep: true }
+);
+
+// 监听列配置变化，重新初始化排序状态
+watch(
+  () => props.columns,
+  () => {
+    initializeDefaultSort();
   },
   { deep: true }
 );
@@ -635,7 +706,49 @@ previousDataLength.value = props.data.length;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background-color: #f5f7fa;
+  background-color: #f5f7fa; /* 深蓝色背景，根据您的图片 */
+  color: #333; /* 白色文字 */
+}
+
+/* 可排序的表头样式 */
+.virtual-table-header-cell.sortable {
+  cursor: pointer;
+}
+
+.virtual-table-header-cell.sortable:hover {
+  background-color: #d0d3d6; /* 稍微亮一点的蓝色用于悬停状态 */
+}
+
+/* 表头单元格内容布局 */
+.cell-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* 排序图标容器 */
+.sort-icons {
+  display: flex;
+  flex-direction: column;
+  margin-left: 5px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* 排序图标 */
+.sort-icon {
+  color: #b0b0b0; /* 默认灰色 */
+  height: 8px;
+  width: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 激活的排序图标 */
+.sort-icon.active {
+  color: white; /* 激活时为白色 */
 }
 
 /* 表体区域 */
@@ -659,8 +772,8 @@ previousDataLength.value = props.data.length;
 
 /* 隐藏滚动条样式 */
 .hide-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 /* Chrome, Safari and Opera */
