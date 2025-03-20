@@ -804,8 +804,18 @@ previousDataLength.value = props.data.length;
   position: absolute;
   width: 100%;
   left: 0;
-  border-bottom: v-bind('borderWidth + "px"') solid #f0f0f0;
 }
+.virtual-table-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height:  v-bind('borderWidth + "px"');
+  background-color: #f0f0f0; /* 使用额外的伪元素确保边框可见 */
+  z-index: 1;
+}
+
 
 /* 表格单元格 */
 .virtual-table-cell {

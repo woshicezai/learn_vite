@@ -11,6 +11,7 @@
       @scroll-to-bottom="handleScrollToBottom"
       :keepScrollPosition="true"
        @sort-change="handleSortChange"
+       :border-width="1"
     >
       <!-- 自定义列单元格 -->
       <template #action="{ row }">
