@@ -8,6 +8,11 @@ export default defineConfig({
     vue(),
     visualizer({ open: true, gzipSize: true, brotliSize: true }),
   ],
+  resolve: {
+    alias: {
+      "@": "/src",
+    },
+  },
   build: {
     rollupOptions: {
       output: {

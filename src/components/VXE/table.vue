@@ -23,6 +23,16 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
+// import "vxe-table/es/style.css";
+import "../../table.css";
+import {
+  VxeUI,
+  VxeTable,
+  VxeColumn,
+  VxeColgroup,
+  VxeGrid,
+  VxeToolbar,
+} from "vxe-table";
 
 const isStop = ref(true);
 let intervalHandler = null;
