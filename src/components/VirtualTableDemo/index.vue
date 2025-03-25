@@ -12,6 +12,8 @@
     :keepScrollPosition="true"
     @sort-change="handleSortChange"
     :border-width="1"
+    @cell-mouse-enter="onCellMouseEnter"
+    @cell-mouse-leave="onCellMouseLeave"
   >
     <template #level="{ row }">
       <HoverLoadContainer>
@@ -99,7 +101,9 @@ const tableColumns = ref([
     prop: `customField${i + 1}`,
     title: `自定义字段${i + 1}`,
     width: 100,
-    value: (row) => `${i+1} : ${Math.floor(Math.random() * 100)}`,
+    value: (row) => {
+      return `${i+1} : ${Math.floor(Math.random() * 100)}`
+    },
   })),
   // 自定义插槽列
   { prop: "action", title: "操作", width: 150 },
@@ -127,7 +131,7 @@ const interval = () => {
 }
 
 onMounted(() => {
-  interval();
+  // interval();
 });
 
 onBeforeUnmount(() => {
@@ -154,4 +158,12 @@ const handleDelete = (row) => {
 const handleSortChange = ({ prop, order }) => {
   console.log(`排序字段: ${prop}, 排序方式: ${order}`);
 };
+
+const onCellMouseEnter = (...args) =>{
+  // console.log('鼠标移入cell',args)
+}
+
+const onCellMouseLeave = (...args)=>{
+  // console.log('鼠标移出cell',args)
+}
 </script>

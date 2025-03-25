@@ -66,11 +66,7 @@
     </div>
 
     <!-- 表体区域 -->
-    <div 
-      class="virtual-table-body"
-      @mouseover="handleCellMouseOver"
-      @mouseout="handleCellMouseOut"
-    >
+    <div class="virtual-table-body">
       <!-- 冻结列区域 - 可垂直滚动但隐藏滚动条 -->
       <div 
         ref="frozenBodyRef"
@@ -94,8 +90,6 @@
               v-for="col in frozenColumns"
               :key="col.id"
               class="virtual-table-cell"
-              :data-row-index="row.index"
-              :data-col-prop="col.prop"
               :style="{
                 width: col.width + 'px',
                 left: col.left + 'px',
@@ -133,8 +127,6 @@
               v-for="col in visibleNonFrozenColumns"
               :key="col.id"
               class="virtual-table-cell"
-              :data-row-index="row.index"
-              :data-col-prop="col.prop"
               :style="{
                 width: col.width + 'px',
                 left: col.offsetLeft + 'px',
@@ -159,8 +151,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
-import { throttle } from 'lodash-es'; // 建议添加lodash-es来优化性能
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 
 // 定义组件的props
 const props = defineProps({
@@ -223,9 +214,7 @@ const emit = defineEmits([
   "scroll-to-top", 
   "scroll-to-bottom", 
   "scroll", 
-  "sort-change",
-  "cell-mouse-enter",  // 新增：单元格鼠标移入事件
-  "cell-mouse-leave"   // 新增：单元格鼠标移出事件
+  "sort-change"
 ]);
 
 // refs
@@ -247,12 +236,6 @@ const previousDataLength = ref(0);
 const sortState = ref({
   prop: '',
   order: ''
-});
-
-// 当前悬停的单元格
-const currentHoverCell = ref({
-  rowIndex: null,
-  colProp: null
 });
 
 // 分离冻结列和非冻结列，并处理排序配置
@@ -425,85 +408,6 @@ const handleHeaderClick = (col) => {
   // 触发排序事件
   emit('sort-change', { prop: col.prop, order: newOrder });
 };
-
-// 新增：处理单元格鼠标移入
-const handleCellMouseOver = throttle((e) => {
-  // 查找最近的单元格元素
-  const cellEl = e.target.closest('.virtual-table-cell');
-  if (!cellEl) return;
-  
-  // 防止重复触发
-  const rowIndex = parseInt(cellEl.dataset.rowIndex);
-  const colProp = cellEl.dataset.colProp;
-  
-  // 如果是相同的单元格，不重复触发
-  if (
-    currentHoverCell.value.rowIndex === rowIndex && 
-    currentHoverCell.value.colProp === colProp
-  ) {
-    return;
-  }
-  
-  // 获取对应的行数据和列配置
-  const rowData = props.data[rowIndex];
-  const colConfig = [...frozenColumns, ...nonFrozenColumns].find(col => col.prop === colProp);
-  
-  if (!rowData || !colConfig) return;
-  
-  // 更新当前悬停单元格
-  currentHoverCell.value = { rowIndex, colProp };
-  
-  // 触发鼠标移入事件
-  emit('cell-mouse-enter', {
-    row: rowData,
-    column: colConfig,
-    rowIndex,
-    columnIndex: [...frozenColumns, ...nonFrozenColumns].findIndex(col => col.prop === colProp),
-    cell: cellEl
-  });
-}, 50); // 节流，避免过多事件触发
-
-// 新增：处理单元格鼠标移出
-const handleCellMouseOut = throttle((e) => {
-  // 查找最近的单元格元素
-  const cellEl = e.target.closest('.virtual-table-cell');
-  if (!cellEl) return;
-  
-  // 获取移出的单元格信息
-  const rowIndex = parseInt(cellEl.dataset.rowIndex);
-  const colProp = cellEl.dataset.colProp;
-  
-  // 获取移入的元素
-  const toElement = e.relatedTarget;
-  const toCellEl = toElement?.closest('.virtual-table-cell');
-  
-  // 如果移动到同一个单元格内的元素，不触发移出事件
-  if (toCellEl === cellEl) return;
-  
-  // 仅当当前悬停单元格与移出单元格匹配时才触发移出事件
-  if (
-    currentHoverCell.value.rowIndex === rowIndex && 
-    currentHoverCell.value.colProp === colProp
-  ) {
-    // 获取对应的行数据和列配置
-    const rowData = props.data[rowIndex];
-    const colConfig = [...frozenColumns, ...nonFrozenColumns].find(col => col.prop === colProp);
-    
-    if (!rowData || !colConfig) return;
-    
-    // 触发鼠标移出事件
-    emit('cell-mouse-leave', {
-      row: rowData,
-      column: colConfig,
-      rowIndex,
-      columnIndex: [...frozenColumns, ...nonFrozenColumns].findIndex(col => col.prop === colProp),
-      cell: cellEl
-    });
-    
-    // 重置当前悬停单元格
-    currentHoverCell.value = { rowIndex: null, colProp: null };
-  }
-}, 50); // 节流，避免过多事件触发
 
 // 初始化默认排序
 const initializeDefaultSort = () => {
@@ -690,12 +594,6 @@ const adjustScrollPosition = () => {
   // 更新记录的数据长度
   previousDataLength.value = currentDataLength;
 };
-
-// 清理工作
-onBeforeUnmount(() => {
-  // 重置所有状态，帮助GC回收内存
-  currentHoverCell.value = { rowIndex: null, colProp: null };
-});
 
 // 对外暴露方法
 defineExpose({
